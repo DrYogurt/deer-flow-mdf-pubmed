@@ -26,6 +26,7 @@ from src.rag.retriever import Resource
 from src.server.chat_request import (
     ChatMessage,
     ChatRequest,
+    DiseaseRequest,
     EnhancePromptRequest,
     GeneratePodcastRequest,
     GeneratePPTRequest,
@@ -40,6 +41,7 @@ from src.server.rag_request import (
     RAGResourcesResponse,
 )
 from src.tools import VolcengineTTS
+from src.models.disease import Disease
 
 logger = logging.getLogger(__name__)
 
@@ -399,3 +401,82 @@ async def rag_resources(request: Annotated[RAGResourceRequest, Query()]):
     if retriever:
         return RAGResourcesResponse(resources=retriever.list_resources(request.query))
     return RAGResourcesResponse(resources=[])
+
+
+@app.post("/api/disease", response_model=Disease)
+async def get_disease_info(request: DiseaseRequest):
+    """Get detailed information about a disease using the DeerFlow workflow.
+    
+    Args:
+        request (DiseaseRequest): The request containing the disease name and workflow parameters
+        
+    Returns:
+        Disease: A structured Disease object containing information about the disease
+        
+    Raises:
+        HTTPException: If there's an error in the workflow or parsing the response
+    """
+    try:
+        # Create a chat message with the disease query
+        query = f"What are the common symptoms of {request.disease_name}? For each symptom describe: how long it might last, an objective metric to quantify it by, ranges within which the objective metric is considered healthy and points beyond which a patient should seek immediate medical attention"
+        
+        # Create initial state for the workflow
+        initial_state = {
+            "messages": [{"role": "user", "content": query}],
+            "plan_iterations": 0,
+            "final_report": "",
+            "current_plan": None,
+            "observations": [],
+            "auto_accepted_plan": request.auto_accepted_plan,
+            "enable_background_investigation": request.enable_background_investigation,
+            "research_topic": query,
+        }
+
+        # Run the workflow
+        final_state = None
+        async for state in graph.astream(
+            initial_state,
+            config={
+                "thread_id": str(uuid4()),
+                "max_plan_iterations": request.max_plan_iterations,
+                "max_step_num": request.max_step_num,
+                "max_search_results": request.max_search_results,
+            },
+            stream_mode="values",
+        ):
+            final_state = state
+
+        if not final_state:
+            raise HTTPException(
+                status_code=500,
+                detail="Workflow failed to complete"
+            )
+
+        if "final_report" not in final_state:
+            raise HTTPException(
+                status_code=500,
+                detail="No disease information was generated"
+            )
+
+        # Parse the final report into a Disease object
+        try:
+            disease_data = json.loads(final_state["final_report"])
+            # Validate the data against the Disease model
+            disease = Disease.model_validate(disease_data)
+            return disease
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to parse disease information: Invalid JSON format"
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to validate disease information: {str(e)}"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error in disease endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL)

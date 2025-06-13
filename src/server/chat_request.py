@@ -104,3 +104,13 @@ class EnhancePromptRequest(BaseModel):
     report_style: Optional[str] = Field(
         "academic", description="The style of the report"
     )
+
+
+class DiseaseRequest(BaseModel):
+    """Request model for getting disease information."""
+    disease_name: str = Field(..., description="The name of the disease to research")
+    max_plan_iterations: int = Field(1, description="Maximum number of plan iterations")
+    max_step_num: int = Field(3, description="Maximum number of steps in a plan")
+    max_search_results: int = Field(5, description="Maximum number of search results")
+    auto_accepted_plan: bool = Field(True, description="Whether to auto-accept the plan")
+    enable_background_investigation: bool = Field(True, description="Whether to perform background investigation before planning")
