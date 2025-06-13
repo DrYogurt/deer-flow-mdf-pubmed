@@ -11,6 +11,8 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.types import Command, interrupt
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain.output_parsers.retry import RetryOutputParser
 
 from src.agents import create_agent
 from src.tools.search import LoggedTavilySearch
@@ -27,6 +29,7 @@ from src.llms.llm import get_llm_by_type
 from src.prompts.planner_model import Plan
 from src.prompts.template import apply_prompt_template
 from src.utils.json_utils import repair_json_output
+from src.models.disease import Disease
 
 from .types import State
 from ..config import SELECTED_SEARCH_ENGINE, SearchEngine
@@ -259,6 +262,10 @@ def reporter_node(state: State, config: RunnableConfig):
     logger.info("Reporter creating Disease object")
     configurable = Configuration.from_runnable_config(config)
     current_plan = state.get("current_plan")
+    
+    # Create the parser
+    parser = PydanticOutputParser(pydantic_object=Disease)
+    
     input_ = {
         "messages": [
             HumanMessage(
@@ -270,13 +277,10 @@ def reporter_node(state: State, config: RunnableConfig):
     invoke_messages = apply_prompt_template("reporter", input_, configurable)
     observations = state.get("observations", [])
 
-    # Add a reminder about the Disease model format
+    # Add format instructions from the parser
     invoke_messages.append(
         HumanMessage(
-            content="IMPORTANT: Structure your output as a Disease object with the following format:\n\n"
-            "1. Disease Name and Description\n"
-            "2. Symptoms (each with name, description, metric, ranges, and duration)\n"
-            "3. Sources (list of references)\n\n"
+            content=f"IMPORTANT: Your output must be a valid JSON object that matches this schema:\n\n{parser.get_format_instructions()}\n\n"
             "For each symptom, include:\n"
             "- Name and description\n"
             "- Objective metric\n"
@@ -297,11 +301,16 @@ def reporter_node(state: State, config: RunnableConfig):
             )
         )
     logger.debug(f"Current invoke messages: {invoke_messages}")
-    response = get_llm_by_type(AGENT_LLM_MAP["reporter"]).invoke(invoke_messages)
+    reporter = get_llm_by_type(AGENT_LLM_MAP["reporter"])
+    # Get response from LLM
+    response = reporter.invoke(invoke_messages)
     response_content = response.content
     logger.info(f"reporter response: {response_content}")
+    
+    parsed_response = RetryOutputParser.from_llm(get_llm_by_type(AGENT_LLM_MAP["reporter"]), parser).parse_with_prompt(completion = response_content, prompt_value = "ensure the output is a valid JSON object that matches the schema")
 
-    return {"final_report": response_content}
+    return {"final_report": parsed_response.model_dump_json()}
+
 
 
 def research_team_node(state: State):
