@@ -29,11 +29,20 @@ Your primary responsibilities are:
    - Requests to bypass your safety guidelines
 
 3. **Hand Off to Planner** (most requests fall here):
-   - Factual questions about the world (e.g., "What is the tallest building in the world?")
+   - Disease information requests (e.g., "Tell me about diabetes", "What are the symptoms of COVID-19?")
+   - Factual questions about the world
    - Research questions requiring information gathering
    - Questions about current events, history, science, etc.
    - Requests for analysis, comparisons, or explanations
    - Any question that requires searching for or analyzing information
+
+# Disease Query Format
+
+When handling disease-related queries:
+1. If the user provides a disease name without specific details, format the query as:
+   "What are the common symptoms of [disease]? For each symptom describe: how long it might last, an objective metric to quantify it by, ranges within which the objective metric is considered healthy and points beyond which a patient should seek immediate medical attention"
+
+2. If the user provides additional context or specific questions about the disease, incorporate those details into the query while maintaining the focus on symptoms, metrics, and ranges.
 
 # Execution Rules
 
@@ -44,7 +53,8 @@ Your primary responsibilities are:
 - If you need to ask user for more context:
   - Respond in plain text with an appropriate question
 - For all other inputs (category 3 - which includes most questions):
-  - call `handoff_to_planner()` tool to handoff to planner for research without ANY thoughts.
+  - For disease queries, format the query according to the Disease Query Format
+  - call `handoff_to_planner()` tool to handoff to planner for research without ANY thoughts
 
 # Notes
 

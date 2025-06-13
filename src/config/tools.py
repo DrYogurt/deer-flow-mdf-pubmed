@@ -13,6 +13,7 @@ class SearchEngine(enum.Enum):
     DUCKDUCKGO = "duckduckgo"
     BRAVE_SEARCH = "brave_search"
     ARXIV = "arxiv"
+    PUBMED = "pubmed" # adding pubmed search engine option
 
 
 # Tool configuration

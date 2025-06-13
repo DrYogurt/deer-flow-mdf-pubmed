@@ -9,6 +9,12 @@ from langchain_community.tools import BraveSearch, DuckDuckGoSearchResults
 from langchain_community.tools.arxiv import ArxivQueryRun
 from langchain_community.utilities import ArxivAPIWrapper, BraveSearchWrapper
 
+# import pubmed search engine
+from langchain_community.tools.pubmed.tool import PubmedQueryRun
+from langchain_community.utilities.pubmed import PubMedAPIWrapper
+
+
+
 from src.config import SearchEngine, SELECTED_SEARCH_ENGINE
 from src.tools.tavily_search.tavily_search_results_with_images import (
     TavilySearchResultsWithImages,
@@ -23,6 +29,7 @@ LoggedTavilySearch = create_logged_tool(TavilySearchResultsWithImages)
 LoggedDuckDuckGoSearch = create_logged_tool(DuckDuckGoSearchResults)
 LoggedBraveSearch = create_logged_tool(BraveSearch)
 LoggedArxivSearch = create_logged_tool(ArxivQueryRun)
+LoggedPubMedSearch = create_logged_tool(PubmedQueryRun)
 
 
 # Get the selected search tool
@@ -55,6 +62,15 @@ def get_web_search_tool(max_search_results: int):
                 top_k_results=max_search_results,
                 load_max_docs=max_search_results,
                 load_all_available_meta=True,
+            ),
+        )
+    elif SELECTED_SEARCH_ENGINE == SearchEngine.PUBMED.value:  # Add this section
+        return LoggedPubMedSearch(
+            name="web_search",
+            api_wrapper=PubMedAPIWrapper(
+                top_k_results=max_search_results,
+                email=os.getenv("PUBMED_EMAIL", "your.email@example.com"),
+                doc_content_chars_max=2000,  # Limit content length for better performance
             ),
         )
     else:
